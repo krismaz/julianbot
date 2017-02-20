@@ -3,6 +3,11 @@ import numpy as np
 from os import listdir
 from os.path import join
 import random
+from slackclient import SlackClient
+from config import token
+import json
+import requests
+import time
 
 
 def julianize(image):
@@ -36,12 +41,38 @@ def julianize(image):
             insert = cv2.resize(julianface, (w, h))
             for i in range(w):
                 for j in range(h):
-                    image[y + i, x + j] = \
-                        image[y + i, x + j] * ((255 - insert[i, j, 3]) / 255) + \
-                        insert[i, j][:3] * (insert[i, j, 3] / 255)
+                    if(image.shape[2]) == 3:
+                        image[y + i, x + j] = \
+                            image[y + i, x + j] * ((255 - insert[i, j, 3]) / 255) + \
+                            insert[i, j][:3] * (insert[i, j, 3] / 255)
+                    else:
+                        image[y + i, x + j] = \
+                            image[y + i, x + j] * ((255 - insert[i, j, 3]) / 255) + \
+                            insert[i, j] * (insert[i, j, 3] / 255)
         except Exception as e:
             print(e)
 
-image = cv2.imread('julianswagger.jpg', flags=cv2.IMREAD_UNCHANGED)
-julianize(image)
-cv2.imwrite('out.jpg', image)
+
+sc = SlackClient(token)
+if sc.rtm_connect():
+    while True:
+        messages = sc.rtm_read()
+        for message in messages:
+            try:
+                if message['type'] == 'file_comment_added' and message['comment']['comment'] == '<@U47T0LMB7>' :
+                    info = sc.api_call('files.info', file = message['file_id'])['file']
+                    url = info['url_private']
+                    get = requests.get(url, headers={'Authorization': 'Bearer {}'.format(token)})
+                    file = url.split('/')[-1]
+                    with open(file, 'wb') as f:
+                        f.write(get.content)
+                    image = cv2.imread(file, flags=cv2.IMREAD_UNCHANGED)
+                    julianize(image)
+                    cv2.imwrite(file+'.out.jpg', image)
+                    sc.api_call('files.upload', channels=info['channels'][0], filename='julian' + file, file=open('out.jpg', 'rb'))
+            except Exception as e:
+                print(e)
+        time.sleep(1)
+else:
+    print("Connection Failed, invalid token?")
+
