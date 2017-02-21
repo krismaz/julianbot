@@ -59,20 +59,22 @@ if sc.rtm_connect():
         messages = sc.rtm_read()
         for message in messages:
             try:
-                if message['type'] == 'file_comment_added' and message['comment']['comment'] == '<@U47T0LMB7>' :
-                    info = sc.api_call('files.info', file = message['file_id'])['file']
+                if message['type'] == 'file_comment_added' and message['comment']['comment'] == '<@U47T0LMB7>':
+                    info = sc.api_call('files.info', file=message[
+                                       'file_id'])['file']
                     url = info['url_private']
-                    get = requests.get(url, headers={'Authorization': 'Bearer {}'.format(token)})
+                    get = requests.get(
+                        url, headers={'Authorization': 'Bearer {}'.format(token)})
                     file = url.split('/')[-1]
                     with open(file, 'wb') as f:
                         f.write(get.content)
                     image = cv2.imread(file, flags=cv2.IMREAD_UNCHANGED)
                     julianize(image)
-                    cv2.imwrite(file+'.out.jpg', image)
-                    sc.api_call('files.upload', channels=info['channels'][0], filename='julian' + file, file=open('out.jpg', 'rb'))
+                    cv2.imwrite(file + '.out.jpg', image)
+                    sc.api_call('files.upload', channels=info['channels'][
+                                0], filename='julian' + file, file=open(file + '.out.jpg','rb'))
             except Exception as e:
                 print(e)
         time.sleep(1)
 else:
     print("Connection Failed, invalid token?")
-
