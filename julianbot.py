@@ -55,11 +55,15 @@ def julianize(image):
 
 sc = SlackClient(token)
 if sc.rtm_connect():
+    seen = set()
     while True:
         messages = sc.rtm_read()
         for message in messages:
             try:
                 if message['type'] == 'file_comment_added' and message['comment']['comment'] == '<@U47T0LMB7>':
+                    if message['file_id'] in seen:
+                        continue
+                    seen.add(message['file_id'])
                     info = sc.api_call('files.info', file=message[
                                        'file_id'])['file']
                     url = info['url_private']
@@ -72,7 +76,7 @@ if sc.rtm_connect():
                     julianize(image)
                     cv2.imwrite(file + '.out.jpg', image)
                     sc.api_call('files.upload', channels=info['channels'][
-                                0], filename='julian' + file, file=open(file + '.out.jpg','rb'))
+                                0], filename='julian' + file, file=open(file + '.out.jpg', 'rb'))
             except Exception as e:
                 print(e)
         time.sleep(1)
