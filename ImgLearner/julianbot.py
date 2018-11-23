@@ -53,6 +53,16 @@ def julianize(image):
         except Exception as e:
             print(e)
 
+files = dict()
+
+def getFile(message):
+    url = files[message['thread_ts']]
+    get = requests.get(
+        url, headers={'Authorization': 'Bearer {}'.format(token)})
+    file = url.split('/')[-1]
+    with open(file, 'wb') as f:
+        f.write(get.content)
+    return file
 
 sc = SlackClient(token)
 if sc.rtm_connect():
@@ -60,28 +70,39 @@ if sc.rtm_connect():
     while True:
         messages = sc.rtm_read()
         for message in messages:
+            print("\n================================================")
             print(message)
+            print(files)
             try:
-                if (message['type'] == 'file_comment_added'  and message['comment']['comment'].startswith('<@U47T0LMB7>')):
-                    if message['comment']['id'] in seen:
+                if message['type'] == 'message':
+                    if message['ts'] in seen or 'text' not in message:
+                        print("SSSSSEEEEEEEEEEEEEEEEENNNN")
                         continue
-                    seen.add(message['comment']['id'])
-                    command = message['comment']['comment'].split()[1:]
-                    info = sc.api_call('files.info', file=message[
-                                       'file_id'])['file']
-                    url = info['url_private']
-                    get = requests.get(
-                        url, headers={'Authorization': 'Bearer {}'.format(token)})
-                    file = url.split('/')[-1]
-                    with open(file, 'wb') as f:
-                        f.write(get.content)
+                    seen.add(message['ts'])
+                    if 'files' in message:
+                        files[message['ts']] = message['files'][0]['url_private_download']
+
+                    text = message['text']
+                    if not text.startswith('<@U47T0LMB7>'):
+                        print("NOT FOR ME")
+                        continue
+                    command = text.lower().split()[1:]
+                    if 'thread_ts' not in message:
+                        message['thread_ts'] = message['ts']
+
                     if command[0] == 'learn':
-                        learner.handle(' '.join(('register' , command[1], message['file_id'], file)))
+                        learner.handle(' '.join(('register' , command[1], message['ts'], getFile(message))))
                         print("!!GOOOD!!!")
-                    if command[0] == 'guess':
+                        sc.api_call('chat.postMessage', channel=message['channel'], text="TARGET " +  command[1] + " AQUIRED" )
+                    elif command[0] == 'guess':
+                        file = getFile(message)
                         learner.handle(' '.join(('annotate', file, file + ".out.jpg")))
-                        sc.api_call('files.upload', channels=info['channels'][
-                                    0], filename='julian' + file, file=open(file + '.out.jpg', 'rb'))
+                        sc.api_call('files.upload', channels=message['channel'], filename='julian' + file, file=open(file + '.out.jpg', 'rb'))
+                    elif command[0].startswith('assemble'):
+                        print("AAAAAAASEEEEEEMMBLE!")
+                        sc.api_call('chat.postMessage', channel=message['channel'], text="JULIANBOT ONLINE!")
+
+
             except Exception as e:
                 print(e)
         time.sleep(1)

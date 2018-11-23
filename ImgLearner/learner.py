@@ -4,6 +4,7 @@ import cv2
 import base64
 import numpy as np
 import json
+import traceback
 
 conn = sqlite3.connect('example.db')
 
@@ -35,7 +36,8 @@ def shrink(image):
 
 def register(person, image, path):
     image_loaded = shrink(face_recognition.load_image_file(path))
-    encoding = face_recognition.face_encodings(image_loaded)[0]
+    face_locations = face_recognition.face_locations(image_loaded, 0, model='cnn')
+    encoding = face_recognition.face_encodings(image_loaded, face_locations)[0]
     b64 = base64.b64encode(encoding).decode('ascii')
     c.execute('''
                 UPDATE signatures SET signature = "{0}", modified_at = CURRENT_TIMESTAMP WHERE person_id = "{1}" AND image_id = "{2}";'''
@@ -57,13 +59,13 @@ def remove(person, image):
 def analyse(path):
     results = []
     image = shrink(cv2.imread(path))
-    face_locations = face_recognition.face_locations(image, 1, model='cnn')
+    face_locations = face_recognition.face_locations(image, 0, model='cnn')
     face_encodings = face_recognition.face_encodings(image, face_locations)
     for location, face_encoding in zip(face_locations, face_encodings):
         # See if the face is a match for the known face(s)
         matches = list(
                     zip(
-                        np.linalg.norm([e for e, _, __ in sigs] - face_encoding, axis=1),
+                        (np.linalg.norm([e for e, _, __ in sigs] - face_encoding, axis=1) ),
                         ((n, p) for _, n, p in sigs)))
         results.append({
                 "position": location,
@@ -79,7 +81,7 @@ def annotate(path, out):
     for match in analysis:
         top, right, bottom, left = match['position']
         best = match["matches"][0]
-        cv2.putText(image, str((1.0 - best[0])*100)[:4] + '% - ' + str(best[1][0]), (left - 40, bottom - 6), cv2.FONT_HERSHEY_DUPLEX, 0.5, (0, 0, 255), 1)
+        cv2.putText(image, str((1.0 - best[0])*100)[:4] + '% - ' + str(best[1][0]), (left - 40, bottom - 6), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 255), 1)
     cv2.imwrite(out, image)
     return analysis
 
@@ -105,8 +107,8 @@ def main():
            handle(input())
         except EOFError:
             break
-        except Exception as e:
-            print(e)
+        except Exception:
+            traceback.print_exc()
     close()
 
 if __name__ == '__main__':
