@@ -3,7 +3,7 @@ import numpy as np
 from os import listdir
 from os.path import join
 import random
-from slackclient import SlackClient
+import slack
 from config import token
 import json
 import requests
@@ -66,84 +66,61 @@ def getFile(message):
         f.write(get.content)
     return file
 
+seen = set()
 
-sc = SlackClient(token)
-while True:
-    try:
-        if sc.rtm_connect():
-            seen = set()
-            while True:
-                messages = sc.rtm_read()
-                for message in messages:
-                    print("\n================================================")
-                    print(message)
-                    print(files)
-                    try:
-                        if message['type'] == 'message':
-                            if message['ts'] in seen or 'text' not in message:
-                                print("SSSSSEEEEEEEEEEEEEEEEENNNN")
-                                continue
-                            seen.add(message['ts'])
-                            if 'files' in message:
-                                files[message['ts']
-                                      ] = message['files'][0]['url_private_download']
+@slack.RTMClient.run_on(event='message')
+def say_hello(**payload):
+    message = payload['data']
+    sc = payload['web_client']
 
-                            text = message['text']
-                            if not text.startswith('<@U47T0LMB7>'):
-                                print("NOT FOR ME")
-                                continue
-                            command = text.lower().split()[1:]
-                            if 'thread_ts' not in message:
-                                message['thread_ts'] = message['ts']
+    if message['ts'] in seen or 'text' not in message:
+            print("SSSSSEEEEEEEEEEEEEEEEENNNN")
+            return
+    seen.add(message['ts'])
+    if 'files' in message:
+        files[message['ts']] = message['files'][0]['url_private_download']
 
-                            if command[0] == 'learn':
-                                learner.handle(
-                                    ' '.join(('register', command[1], message['ts'], getFile(message))))
-                                print("!!GOOOD!!!")
-                                sc.api_call(
-                                    'chat.postMessage', channel=message['channel'], text="TARGET " + command[1] + " AQUIRED", as_user=True)
-                            elif command[0] == 'guess':
-                                file = getFile(message)
-                                learner.handle(
-                                    ' '.join(('annotate', file, file + ".out.jpg")))
-                                sc.api_call(
-                                    'files.upload', channels=message['channel'], filename='julian' + file, file=open(file + '.out.jpg', 'rb'))
-                            elif command[0] == 'krismaz':
-                                file = getFile(message)
-                                learner.handle(
-                                    ' '.join(('krismaz', file, file + ".out.jpg")))
-                                sc.api_call(
-                                    'files.upload', channels=message['channel'], filename='julian' + file, file=open(file + '.out.jpg', 'rb'))
-                            elif command[0].startswith('assemble'):
-                                print("AAAAAAASEEEEEEMMBLE!")
-                                sc.api_call(
-                                    'chat.postMessage', channel=message['channel'], text="JULIANBOT ONLINE!", as_user=True)
-                            elif command[0].startswith('ultrahypermode'):
-                                learner.size = 2000
-                                learner.layers = 2
-                                sc.api_call(
-                                    'chat.postMessage', channel=message['channel'], text="QUANTUM HYPERTHRUSTER ENGAGED!!", as_user=True)
-                            elif command[0].startswith('hypermode'):
-                                learner.size = 1500
-                                learner.layers = 1
-                                sc.api_call(
-                                    'chat.postMessage', channel=message['channel'], text="HYPERTHRUSTER ENGAGED!!", as_user=True)
-                            elif command[0].startswith('normalmode'):
-                                learner.size = 1000
-                                learner.layers = 0
-                                sc.api_call(
-                                    'chat.postMessage', channel=message['channel'], text="ok i r calm now...", as_user=True)
-                            elif command[0].startswith('help') or command[0].startswith('help'):
-                                sc.api_call(
-                                    'chat.postMessage', channel=message['channel'], text="JULIANBOT KNOWS register, annotate, assemble, ultrahypermode, hypermode, normalmode!", as_user=True)
+    text = message['text']
+    if not text.startswith('<@U47T0LMB7>'):
+        print("NOT FOR ME")
+        return
+    command = text.lower().split()[1:]
+    if 'thread_ts' not in message:
+        message['thread_ts'] = message['ts']
 
-                    except Exception as e:
-                        print(e)
-                time.sleep(1)
+    if command[0] == 'learn':
+        learner.handle(
+            ' '.join(('register', command[1], message['ts'], getFile(message))))
+        print("!!GOOOD!!!")
+        sc.chat_postMessage( channel=message['channel'], text="TARGET " + command[1] + " AQUIRED", as_user=True)
+    elif command[0] == 'guess':
+        file = getFile(message)
+        learner.handle(
+            ' '.join(('annotate', file, file + ".out.jpg")))
+        sc.files_upload( channels=message['channel'], filename='julian' + file, file=open(file + '.out.jpg', 'rb'))
+    elif command[0] == 'krismaz':
+        file = getFile(message)
+        learner.handle(
+            ' '.join(('krismaz', file, file + ".out.jpg")))
+        sc.files_upload(channels=message['channel'], filename='julian' + file, file=open(file + '.out.jpg', 'rb'))
+    elif command[0].startswith('assemble'):
+        print("AAAAAAASEEEEEEMMBLE!")
+        sc.chat_postMessage(channel=message['channel'], text="JULIANBOT ONLINE!", as_user=True)
+    elif command[0].startswith('ultrahypermode'):
+        learner.size = 2000
+        learner.layers = 2
+        sc.chat_postMessage( channel=message['channel'], text="QUANTUM HYPERTHRUSTER ENGAGED!!", as_user=True)
+    elif command[0].startswith('hypermode'):
+        learner.size = 1500
+        learner.layers = 1
+        sc.chat_postMessage( channel=message['channel'], text="HYPERTHRUSTER ENGAGED!!", as_user=True)
+    elif command[0].startswith('normalmode'):
+        learner.size = 1000
+        learner.layers = 0
+        sc.chat_postMessage( channel=message['channel'], text="ok i r calm now...", as_user=True)
+    elif command[0].startswith('help') or command[0].startswith('help'):
+        sc.chat_postMessage( channel=message['channel'], text="JULIANBOT KNOWS register, annotate, assemble, ultrahypermode, hypermode, normalmode!", as_user=True)
 
-        else:
-            print("Connection Failed, invalid token?")
-            time.sleep(60)
-    except ConnectionAbortedError:
-        print("Connection reset")
-        time.sleep(1)
+rtm_client = slack.RTMClient(token=token)
+rtm_client.start()
+
